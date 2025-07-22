@@ -376,7 +376,7 @@ export default function App() {
             <Box
               sx={{
                 position: "absolute",
-                top: "70px", // lower top offset than before
+                top: "90px", // lower top offset than before
                 left: "50%",
                 transform: "translateX(-50%)",
                 backgroundColor: theme.palette.background.paper,
@@ -403,7 +403,7 @@ export default function App() {
         </IconButton>
 
         {/* ✅ Progress Bar */}
-        <Box sx={{ mt: 0, mb: 10, width: "80%", maxWidth: "400px" }}>
+        <Box sx={{ mt: 0, mb: 0, width: "80%", maxWidth: "400px" }}>
           <Typography variant="body1" sx={{ color: "text.primary", mb: 1 }}>
             {answeredCount} / {totalPool} answered –{" "}
             {answeredCount > 0
@@ -441,12 +441,18 @@ export default function App() {
             />
           </Box>
         </Box>
+        <Typography variant="h7" sx={{ mt: 2, color: "text.primary" }}>
+          Streak: {streak}
+        </Typography>
+        <Typography variant="h7" sx={{ color: "text.primary" }}>
+          Best Streak (This Session): {bestStreak}
+        </Typography>
 
         {/* ✅ Question */}
         <Typography
           variant="h4"
           gutterBottom
-          sx={{ color: "text.primary", mb: 3 }}
+          sx={{ color: "text.primary", mt: 2, mb: 3 }}
         >
           {current.prompt}
         </Typography>
