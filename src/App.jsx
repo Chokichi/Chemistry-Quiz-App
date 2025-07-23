@@ -21,9 +21,10 @@ import {
 } from "@mui/material";
 import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
 import { LightMode, DarkMode } from "@mui/icons-material";
-import elements from "./data/elements.js"; // ✅ Use your full elements file
+import elements from "./data/elements.js";
+import confetti from "canvas-confetti"
 
-// ✅ Chem 20 Symbols List
+// ✅ Dr. K's Chem 20 Symbols List
 const CHEM20_SYMBOLS = [
   "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
   "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar",
@@ -40,13 +41,41 @@ export default function App() {
   const [feedback, setFeedback] = useState(""); // "correct" | "incorrect" | "close"
   const [waitingToContinue, setWaitingToContinue] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [message, setMessage] = useState("");
   const [missedQuestions, setMissedQuestions] = useState([]);
   const [reviewMode, setReviewMode] = useState(false);
-  const [messageVisible, setMessageVisible] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState([]);
-  const [elementsExpanded, setElementsExpanded] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsButtonRef = useRef(null)
+  const reviewButtonRef = useRef(null)
+  const [totalPool, setTotalPool] = useState(0);
+  const [questionPool, setQuestionPool] = useState([]);
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+
+
+
+  // Track how many times each helper message was shown
+
+
+  // Timing values
+  const defaultDisplayTime = 2000; // ms visible before fading
+  const fadeTime = 500;    // fade duration
+
+  // State
+  const [messageQueue, setMessageQueue] = useState([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageVisible, setMessageVisible] = useState(false);
+  const [messagePosition, setMessagePosition] = useState(null);
+
+  // Call this anywhere to add messages
+  const queueMessage = (text, ref = null, duration = defaultDisplayTime) => {
+    setMessageQueue((prev) => [
+      ...prev,
+      { text, ref, duration } // store per-message duration
+    ]);
+  };
+
 
   const toggleOptions = (open) => () => {
     setOptionsOpen(open);
@@ -61,14 +90,57 @@ export default function App() {
   const answeredCount = answeredQuestions.length;
 
 
-  
 
-  const showMessage = (text) => {
-    setMessage(text);
-    setMessageVisible(true);
-    setTimeout(() => setMessageVisible(false), 6000); // start fade-out after 3s
-    setTimeout(() => setMessage(""), 11000); // clear text after fade-out finishes
-  };
+  // Async loop to display messages
+
+  useEffect(() => {
+    if (isProcessingQueue || messageQueue.length === 0) return;
+
+    let cancelled = false;
+
+    const processQueue = async () => {
+      setIsProcessingQueue(true);
+
+      while (!cancelled && messageQueue.length > 0) {
+        const { text, ref, duration } = messageQueue[0];
+
+        // ✅ Calculate top/left based on ref (if provided)
+        let position = null;
+        if (ref?.current) {
+          const rect = ref.current.getBoundingClientRect();
+          position = {
+            top: `${rect.top + window.scrollY - 40}px`, // floats above by default
+            left: `${rect.left + window.scrollX + rect.width / 2}px`,
+          };
+        }
+
+        // Show the message
+        setMessage(text);
+        setMessagePosition(ref);
+        setMessageVisible(true);
+
+        // Use message's duration or fallback to default
+        await new Promise((r) => setTimeout(r, duration || defaultDisplayTime));
+
+        // Fade out
+        setMessageVisible(false);
+        await new Promise((r) => setTimeout(r, fadeTime));
+
+        // Move to next
+        setMessageQueue((prev) => prev.slice(1));
+      }
+
+      setIsProcessingQueue(false);
+    };
+
+    processQueue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [messageQueue, isProcessingQueue]);
+
+
 
 
   const [gameModes, setGameModes] = useState({
@@ -86,11 +158,6 @@ export default function App() {
     maxRow: 7,
   });
 
-  const [totalPool, setTotalPool] = useState(0);
-  const [questionPool, setQuestionPool] = useState([]);
-
-  const boxRef = useRef(null);
-  const inputRef = useRef(null);
 
   const theme = useMemo(
     () =>
@@ -121,6 +188,7 @@ export default function App() {
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
   }, [feedback]);
+
 
 
   const getSelectedModes = () => {
@@ -196,7 +264,7 @@ export default function App() {
     if (reviewMode) {
       // ✅ If no more missed questions, exit review mode gracefully
       if (missedQuestions.length === 0) {
-        showMessage("No more missed questions to review! Hit continue or enter to keep going!");
+        queueMessage("No more missed questions to review! Hit continue or enter to keep going!");
         setReviewMode(false);
         return;
       }
@@ -214,6 +282,66 @@ export default function App() {
         inputRef.current?.focus();
       }, 50);
       return;
+    }
+
+    if (pool.length === 0) {
+      // ✅ Completion handling before reshuffling
+      if (answeredCount >= totalPool) {
+        if (correctCount === totalPool) {
+          queueMessage("🎉 Congratulations! You completed 100% correctly!");
+          confetti({
+            particleCount: 150,
+            angle: 120,
+            spread: 60,
+            origin: { x: 0.6, y: 0.5 },
+            ticks: 300,
+            startVelocity: 55,
+          });
+          setTimeout(() => {
+            confetti({
+              particleCount: 150,
+              angle: 60,
+              spread: 60,
+              origin: { x: 0.4, y: 0.5 },
+              ticks: 300,
+              startVelocity: 55,
+          })}, 500);
+          setTimeout(() => {
+            confetti({
+              particleCount: 500,
+              angle: 90,
+              spread: 60,
+              origin: { x: .5, y: .6 },
+              ticks: 300,
+              startVelocity: 70,
+          })}, 1000);
+        } else {
+          queueMessage("✅ Great job! You completed all questions!");
+          if (missedQuestions.length > 0 && reviewButtonRef.current) {
+            queueMessage(
+              "Review the ones you missed to get 100%!", reviewButtonRef, 3000);
+          }
+
+        }
+
+        queueMessage("💡 Try other game modes and options! Tap the Options button.", reviewButtonRef, 3000);
+
+        // ✅ Delay reshuffle to let users celebrate (keep this part)
+        setTimeout(() => {
+          const filtered = applyFilters();
+          const reshuffled = [...filtered].sort(() => Math.random() - 0.5);
+          setQuestionPool(reshuffled);
+          getNewQuestion(reshuffled);
+        }, 6000);
+
+        return;
+      }
+
+      // fallback reshuffle if something else triggers early
+      const filtered = applyFilters();
+      const reshuffled = [...filtered].sort(() => Math.random() - 0.5);
+      setQuestionPool(reshuffled);
+      pool = reshuffled;
     }
 
     // ✅ Normal mode logic
@@ -323,11 +451,16 @@ export default function App() {
     ) {
       resultStatus = "close";
       setShowAnswer(true);
-      showMessage("Looks like there was a typo! Check your spelling with the answer below.");
+      queueMessage("Looks like there was a typo! Check your spelling with the answer below.");
     } else {
       setStreak(0);
-      if (!reviewMode) setMissedQuestions((prev) => [...prev, current]);
-    }
+      if (!reviewMode) {
+        setMissedQuestions((prev) => {
+          // Ensure only unique questions by checking the prompt
+          const exists = prev.some((q) => q.prompt === current.prompt);
+          return exists ? prev : [...prev, current];
+        });
+      }    }
 
     setFeedback(resultStatus);
 
@@ -362,6 +495,7 @@ export default function App() {
     setGameModes((prev) => ({ ...prev, [mode]: !prev[mode] }));
   };
 
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -372,27 +506,30 @@ export default function App() {
       >
         {/* ✅ Message */}
         {message && (
-          <Fade in={messageVisible} timeout={1000}>
+          <Fade in={messageVisible} timeout={fadeTime}>
             <Box
               sx={{
                 position: "absolute",
-                top: "90px", // lower top offset than before
-                left: "50%",
-                transform: "translateX(-50%)",
+                top: messagePosition
+                  ? `${messagePosition.current?.offsetTop - 80 || 100}px`
+                  : "80px", // fallback near top
+                  left: messagePosition?.left ?? "50%",
+                transform: messagePosition ? "translate(-50%)" : "translateX(-50%)",
                 backgroundColor: theme.palette.background.paper,
                 color: theme.palette.text.primary,
                 border: `1px solid ${theme.palette.divider}`,
                 borderRadius: "8px",
-                padding: "10px 15px",
+                padding: "5px",
                 boxShadow: 3,
                 zIndex: 10,
-                pointerEvents: "none",
+                minWith: "300px",
               }}
             >
               <Typography variant="body1">{message}</Typography>
             </Box>
           </Fade>
         )}
+
 
         {/* ✅ Light/Dark Toggle */}
         <IconButton
@@ -471,89 +608,91 @@ export default function App() {
         </Button>
 
         <Box
-  sx={{
-    minHeight: "120px", // Reserve total space for both sections
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    mt: 2,
-  }}
->
-  {/* Answer Area (always rendered, visibility toggled) */}
-  <Box
-    sx={{
-      minHeight: "60px", // Reserve for answer text / show answer button
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-    }}
-  >
-    {feedback === "incorrect" && !showAnswer ? (
-      <Button
-        onClick={() => setShowAnswer(true)}
-        disabled={showAnswer}
-        sx={{ visibility: "visible" }}
-      >
-        Show Answer (F)
-      </Button>
-    ) : feedback === "incorrect" || feedback === "close" ? (
-      <Typography
-        variant="h6"
-        sx={{ color: "text.primary", fontWeight: "bold", visibility: "visible" }}
-      >
-        Answer: {showAnswer || feedback === "close" ? current.answer : ""}
-      </Typography>
-    ) : (
-      <Box sx={{ visibility: "hidden" }}>
-        {/* Placeholder so space is reserved */}
-        <Typography variant="h6">placeholder</Typography>
-      </Box>
-    )}
-  </Box>
+          sx={{
+            minHeight: "120px", // Reserve total space for both sections
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            mt: 2,
+          }}
+        >
+          {/* Answer Area (always rendered, visibility toggled) */}
+          <Box
+            sx={{
+              minHeight: "60px", // Reserve for answer text / show answer button
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {feedback === "incorrect" && !showAnswer ? (
+              <Button
+                onClick={() => setShowAnswer(true)}
+                disabled={showAnswer}
+                sx={{ visibility: "visible" }}
+              >
+                Show Answer (F)
+              </Button>
+            ) : feedback === "incorrect" || feedback === "close" ? (
+              <Typography
+                variant="h6"
+                sx={{ color: "text.primary", fontWeight: "bold", visibility: "visible" }}
+              >
+                Answer: {showAnswer || feedback === "close" ? current.answer : ""}
+              </Typography>
+            ) : (
+              <Box sx={{ visibility: "hidden" }}>
+                {/* Placeholder so space is reserved */}
+                <Typography variant="h6">placeholder</Typography>
+              </Box>
+            )}
+          </Box>
 
-  {/* Review Missed Button (always rendered, toggles visibility) */}
-  <Box sx={{ minHeight: "40px", mt: 1 }}>
-    {missedQuestions.length > 0 && !reviewMode ? (
-      <Button
-        variant="outlined"
-        sx={{ visibility: "visible" }}
-        onClick={() => {
-          setReviewMode(true);
-          showMessage(
-            "Reviewing missed questions. These will be changed to correct as you answer them."
-          );
-          if (missedQuestions.length > 0) {
-            const next = missedQuestions[missedQuestions.length - 1];
-            setCurrent(next);
-            setFeedback("");
-            setInput("");
-            setWaitingToContinue(false);
-            setShowAnswer(false);
-            setTimeout(() => {
-              boxRef.current?.focus();
-              inputRef.current?.focus();
-            }, 50);
-          }
-        }}
-      >
-        Review Missed ({missedQuestions.length})
-      </Button>
-    ) : (
-      <Box sx={{ visibility: "hidden" }}>
-        {/* Placeholder button keeps height consistent */}
-        <Button variant="outlined">placeholder</Button>
-      </Box>
-    )}
-  </Box>
-</Box>
+          {/* Review Missed Button (always rendered, toggles visibility) */}
+          <Box sx={{ minHeight: "40px", mt: 1 }}>
+            {missedQuestions.length > 0 && !reviewMode ? (
+              <Button
+                ref={reviewButtonRef}
+                variant="outlined"
+                sx={{ visibility: "visible" }}
+                onClick={() => {
+                  setReviewMode(true);
+                  queueMessage(
+                    "Reviewing missed questions. These will be changed to correct as you answer them."
+                  );
+                  if (missedQuestions.length > 0) {
+                    const next = missedQuestions[missedQuestions.length - 1];
+                    setCurrent(next);
+                    setFeedback("");
+                    setInput("");
+                    setWaitingToContinue(false);
+                    setShowAnswer(false);
+                    setTimeout(() => {
+                      boxRef.current?.focus();
+                      inputRef.current?.focus();
+                    }, 50);
+                  }
+                }}
+              >
+                Review Missed ({missedQuestions.length})
+              </Button>
+            ) : (
+              <Box sx={{ visibility: "hidden" }}>
+                {/* Placeholder button keeps height consistent */}
+                <Button variant="outlined">placeholder</Button>
+              </Box>
+            )}
+          </Box>
+        </Box>
 
         {/* Options Drawer */}
 
         <Button
+          ref={optionsButtonRef}
           variant="outlined"
-          sx={{ mt: 3 }}
+          sx={{ mt: 0 }}
           onClick={toggleOptions(true)}
         >
           Options
@@ -661,7 +800,7 @@ export default function App() {
                     }
                   />
                 }
-                label="Include Lanthanides, Actinides & Transactinides"
+                label="Lanthanides & Actinides"
               />
             </FormGroup>
 
@@ -788,7 +927,7 @@ const FeedbackBox = forwardRef(function FeedbackBox(
     }
     return theme.palette.background.default;
   };
-  
+
 
   return (
     <Box
